@@ -86,7 +86,7 @@ export function resolveClientReference<T>(
       }
       name = metadata[NAME];
     }
-    if (isAsyncImport(metadata)) {
+    if (resolvedModuleData.async) {
       return [
         resolvedModuleData.id,
         resolvedModuleData.chunks,
