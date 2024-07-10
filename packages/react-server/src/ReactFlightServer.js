@@ -75,6 +75,8 @@ import {
   isServerReference,
   supportsRequestStorage,
   requestStorage,
+  supportsCacheStorage,
+  cacheStorage,
   supportsComponentStorage,
   componentStorage,
   createHints,
@@ -605,6 +607,29 @@ export function resolveRequest(): null | Request {
     if (store) return store;
   }
   return null;
+}
+
+function resolveCacheScope(): null | Map<Function, mixed> {
+  if (supportsCacheStorage) {
+    const store = cacheStorage.getStore();
+    if (store) return store;
+  }
+  return null;
+}
+
+// TODO: export this less randomly somehow
+export {cacheStorage};
+
+export function resolveCache(): Map<Function, mixed> {
+  const cacheScope = resolveCacheScope();
+  if (cacheScope) {
+    return cacheScope;
+  }
+  const request = resolveRequest();
+  if (request) {
+    return getCache(request);
+  }
+  return new Map();
 }
 
 function serializeThenable(

@@ -10,13 +10,17 @@
 import {AsyncLocalStorage} from 'async_hooks';
 
 import type {Request} from 'react-server/src/ReactFlightServer';
-import type {ReactComponentInfo} from 'shared/ReactTypes';
+import type {ReactComponentInfo, ReactCacheRoot} from 'shared/ReactTypes';
 
 export * from 'react-server-dom-webpack/src/ReactFlightServerConfigWebpackBundler';
 export * from 'react-dom-bindings/src/server/ReactFlightServerConfigDOM';
 
 export const supportsRequestStorage = true;
 export const requestStorage: AsyncLocalStorage<Request | void> =
+  new AsyncLocalStorage();
+
+export const supportsCacheStorage = true;
+export const cacheStorage: AsyncLocalStorage<ReactCacheRoot | void> =
   new AsyncLocalStorage();
 
 export const supportsComponentStorage = __DEV__;

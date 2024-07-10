@@ -3,6 +3,7 @@
 const fs = require('fs');
 const nodePath = require('path');
 const inlinedHostConfigs = require('../shared/inlinedHostConfigs');
+const {AsyncLocalStorage} = require('async_hooks');
 
 function resolveEntryFork(resolvedEntry, isFBBundle) {
   // Pick which entry point fork to use:
@@ -154,11 +155,13 @@ jest.mock('react-server/flight', () => {
       getClientReferenceKey: config.getClientReferenceKey,
       resolveClientReferenceMetadata: config.resolveClientReferenceMetadata,
     }));
-    jest.mock(shimFlightServerConfigPath, () =>
-      jest.requireActual(
+    jest.mock(shimFlightServerConfigPath, () => ({
+      ...jest.requireActual(
         'react-server/src/forks/ReactFlightServerConfig.custom'
-      )
-    );
+      ),
+      supportsCacheStorage: true,
+      cacheStorage: new AsyncLocalStorage(),
+    }));
     return jest.requireActual('react-server/flight');
   };
 });

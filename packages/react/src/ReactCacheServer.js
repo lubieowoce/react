@@ -8,3 +8,4 @@
  */
 
 export {cache} from './ReactCacheImpl';
+export {createCacheScope} from './ReactCacheScope';

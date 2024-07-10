@@ -11,19 +11,11 @@ import type {ReactComponentInfo} from 'shared/ReactTypes';
 
 import type {AsyncDispatcher} from 'react-reconciler/src/ReactInternalTypes';
 
-import {resolveRequest, getCache} from '../ReactFlightServer';
+import {resolveCache} from '../ReactFlightServer';
 
 import {disableStringRefs} from 'shared/ReactFeatureFlags';
 
 import {resolveOwner} from './ReactFlightCurrentOwner';
-
-function resolveCache(): Map<Function, mixed> {
-  const request = resolveRequest();
-  if (request) {
-    return getCache(request);
-  }
-  return new Map();
-}
 
 export const DefaultAsyncDispatcher: AsyncDispatcher = ({
   getCacheForType<T>(resourceType: () => T): T {

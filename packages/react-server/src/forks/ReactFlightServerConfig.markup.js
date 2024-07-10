@@ -8,7 +8,7 @@
  */
 
 import type {Request} from 'react-server/src/ReactFlightServer';
-import type {ReactComponentInfo} from 'shared/ReactTypes';
+import type {ReactComponentInfo, ReactCacheRoot} from 'shared/ReactTypes';
 import type {ReactClientValue} from 'react-server/src/ReactFlightServer';
 
 export type HintCode = string;
@@ -21,6 +21,10 @@ export function createHints(): Hints {
 
 export const supportsRequestStorage = false;
 export const requestStorage: AsyncLocalStorage<Request | void> = (null: any);
+
+export const supportsCacheStorage = false;
+export const cacheStorage: AsyncLocalStorage<ReactCacheRoot | void> =
+  (null: any);
 
 export const supportsComponentStorage = false;
 export const componentStorage: AsyncLocalStorage<ReactComponentInfo | void> =

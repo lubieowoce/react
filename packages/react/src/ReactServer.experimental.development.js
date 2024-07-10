@@ -35,7 +35,7 @@ import {
 import {forwardRef} from './ReactForwardRef';
 import {lazy} from './ReactLazy';
 import {memo} from './ReactMemo';
-import {cache} from './ReactCacheServer';
+import {cache, createCacheScope} from './ReactCacheServer';
 import {startTransition} from './ReactStartTransition';
 import {postpone} from './ReactPostpone';
 import {captureOwnerStack} from './ReactOwnerStack';
@@ -70,6 +70,7 @@ export {
   lazy,
   memo,
   cache,
+  createCacheScope,
   startTransition,
   REACT_DEBUG_TRACING_MODE_TYPE as unstable_DebugTracingMode,
   REACT_SUSPENSE_TYPE as unstable_SuspenseList,

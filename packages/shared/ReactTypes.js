@@ -193,3 +193,5 @@ export type ReactAsyncInfo = {
 };
 
 export type ReactDebugInfo = Array<ReactComponentInfo | ReactAsyncInfo>;
+
+export type ReactCacheRoot = Map<Function, any>;

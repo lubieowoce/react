@@ -14,17 +14,20 @@ let React;
 let ReactNoopFlightServer;
 let ReactNoopFlightClient;
 let cache;
+let createCacheScope;
 
 describe('ReactCache', () => {
   beforeEach(() => {
     jest.resetModules();
     jest.mock('react', () => require('react/react.react-server'));
-    React = require('react');
 
     ReactNoopFlightServer = require('react-noop-renderer/flight-server');
     ReactNoopFlightClient = require('react-noop-renderer/flight-client');
 
+    React = require('react');
+
     cache = React.cache;
+    createCacheScope = React.createCacheScope;
 
     jest.resetModules();
     __unmockReact();
@@ -201,6 +204,38 @@ describe('ReactCache', () => {
     ReactNoopFlightServer.render(<Test />);
     expect(x).toBe(y);
     expect(z).not.toBe(x);
+  });
+
+  // @gate enableCache
+  it('cache scope', async () => {
+    const scope = createCacheScope();
+    const shared = cache(() => ({}));
+
+    const values = new Set();
+    function Test() {
+      values.add(shared());
+      return null;
+    }
+
+    scope.run(() =>
+      ReactNoopFlightServer.render(
+        <>
+          <Test />
+          <Test />
+        </>,
+      ),
+    );
+
+    scope.run(() =>
+      ReactNoopFlightServer.render(
+        <>
+          <Test />
+          <Test />
+        </>,
+      ),
+    );
+
+    expect(values.size).toEqual(1);
   });
 
   // @gate enableCache
