@@ -449,6 +449,105 @@ describe('ReactFlightDOMReply', () => {
     expect(response.obj).toBe(obj);
   });
 
+  it.each([
+    {
+      title: 'object',
+      value: {hi: 'there'},
+    },
+    {
+      title: 'Map',
+      value: new Map([
+        [1, 'one'],
+        [2, 'two'],
+        [3, 'three'],
+      ]),
+    },
+    {
+      title: 'Set',
+      value: new Set([1, 2, 3]),
+    },
+    {
+      title: 'Date',
+      value: new Date('2000-01-01'),
+    },
+    {
+      title: 'JSX',
+      value: <div>hi there</div>,
+    },
+    {
+      title: 'Promise',
+      value: Promise.resolve({hi: 'there'}),
+    },
+    // // FIXME: broken for some reason
+    // {
+    //   title: 'TypedArray',
+    //   value: new Uint8Array([0, 1, 2, 3]),
+    // },
+    {
+      title: 'Blob',
+      value: new Blob(['hi there']),
+    },
+    {
+      title: 'FormData',
+      value: (() => {
+        const formData = new FormData();
+        formData.append('hi', 'there');
+        return formData;
+      })(),
+    },
+    {
+      title: 'FormData with a file',
+      value: (() => {
+        const formData = new FormData();
+        formData.append('hi', 'there');
+        formData.append(
+          'upload',
+          new File(['hi there'], 'greeting.txt', {type: 'text/plain'}),
+        );
+        return formData;
+      })(),
+    },
+  ])(
+    'can pass parts of the reply through a round trip using temporary references: $title',
+    async ({value}) => {
+      function Component() {
+        return <div />;
+      }
+
+      const payload = {wrapped: value};
+
+      const temporaryReferences =
+        ReactServerDOMClient.createTemporaryReferenceSet();
+      const body = await ReactServerDOMClient.encodeReply(payload, {
+        temporaryReferences,
+      });
+
+      const temporaryReferencesServer =
+        ReactServerDOMServer.createTemporaryReferenceSet();
+      const reply = await ReactServerDOMServer.decodeReply(
+        body,
+        webpackServerMap,
+        {temporaryReferences: temporaryReferencesServer},
+      );
+      const responsePayload = {wrappedDifferently: reply.wrapped};
+      const stream = await serverAct(() =>
+        ReactServerDOMServer.renderToReadableStream(responsePayload, null, {
+          temporaryReferences: temporaryReferencesServer,
+        }),
+      );
+
+      const response = await ReactServerDOMClient.createFromReadableStream(
+        stream,
+        {
+          temporaryReferences,
+        },
+      );
+
+      // The wrapping object is different, but the inner value should be the same.
+      expect(response.wrappedDifferently).toBe(payload.wrapped);
+    },
+  );
+
   it('should supports streaming ReadableStream with objects', async () => {
     let controller1;
     let controller2;
