@@ -2805,7 +2805,18 @@ function renderModelDestructive(
       // Possibly a Date, whose toJSON automatically calls toISOString
       // $FlowFixMe[incompatible-use]
       const originalValue = parent[parentPropertyName];
+
       if (originalValue instanceof Date) {
+        // the client might already have this Date.
+        if (request.temporaryReferences !== undefined) {
+          const tempRef = resolveTemporaryReference(
+            request.temporaryReferences,
+            originalValue,
+          );
+          if (tempRef !== undefined) {
+            return serializeTemporaryReference(request, tempRef);
+          }
+        }
         return serializeDateFromDateJSON(value);
       }
     }

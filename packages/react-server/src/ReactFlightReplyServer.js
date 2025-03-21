@@ -18,7 +18,10 @@ import type {
   ClientReference as ServerReference,
 } from 'react-client/src/ReactFlightClientConfig';
 
-import type {TemporaryReferenceSet} from './ReactFlightServerTemporaryReferences';
+import {
+  isOpaqueTemporaryReference,
+  type TemporaryReferenceSet,
+} from './ReactFlightServerTemporaryReferences';
 
 import {
   resolveServerReference,
@@ -390,21 +393,36 @@ function reviveModel(
   value: JSONValue,
   reference: void | string,
 ): any {
+  const temporaryReferences = response._temporaryReferences;
   if (typeof value === 'string') {
     // We can't use .bind here because we need the "this" value.
-    return parseModelString(response, parentObj, parentKey, value, reference);
-  }
-  if (typeof value === 'object' && value !== null) {
+    const parsedValue = parseModelString(
+      response,
+      parentObj,
+      parentKey,
+      value,
+      reference,
+    );
     if (
+      temporaryReferences !== undefined &&
       reference !== undefined &&
-      response._temporaryReferences !== undefined
+      typeof parsedValue === 'object' &&
+      parsedValue !== null
     ) {
+      // If we deserialized an opaque temporary reference, we don't want to overwrite it.
+      if (!isOpaqueTemporaryReference(parsedValue)) {
+        // Store this object's reference in case it's returned later.
+        // TODO: maybe we want to check if we've written this before to avoid changing ids for duplicated objects?
+        registerTemporaryReference(temporaryReferences, parsedValue, reference);
+      }
+    }
+    return parsedValue;
+  }
+
+  if (typeof value === 'object' && value !== null) {
+    if (reference !== undefined && temporaryReferences !== undefined) {
       // Store this object's reference in case it's returned later.
-      registerTemporaryReference(
-        response._temporaryReferences,
-        value,
-        reference,
-      );
+      registerTemporaryReference(temporaryReferences, value, reference);
     }
     if (Array.isArray(value)) {
       for (let i = 0; i < value.length; i++) {

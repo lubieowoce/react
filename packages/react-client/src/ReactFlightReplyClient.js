@@ -744,6 +744,22 @@ export function processReply(
         // $FlowFixMe[incompatible-use]
         const originalValue = parent[key];
         if (originalValue instanceof Date) {
+          // TODO: If the property name contains a colon, we don't dedupe. Escape instead.
+          const parentReference = writtenObjects.get(parent);
+          if (parentReference !== undefined) {
+            // If the parent has a reference, we can refer to this object indirectly
+            // through the property name inside that parent.
+            const reference = parentReference + ':' + key;
+            writtenObjects.set(originalValue, reference);
+            if (temporaryReferences !== undefined) {
+              // Store this object so that the server can refer to it later in responses.
+              writeTemporaryReference(
+                temporaryReferences,
+                reference,
+                originalValue,
+              );
+            }
+          }
           return serializeDateFromDateJSON(value);
         }
       }
