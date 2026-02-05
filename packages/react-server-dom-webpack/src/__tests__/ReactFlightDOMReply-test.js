@@ -20,6 +20,7 @@ global.TextDecoder = require('util').TextDecoder;
 // let serverExports;
 let webpackServerMap;
 let React;
+let ReactDOMServer;
 let ReactServerDOMServer;
 let ReactServerDOMClient;
 let ReactServerScheduler;
@@ -42,6 +43,7 @@ describe('ReactFlightDOMReply', () => {
     // serverExports = WebpackMock.serverExports;
     webpackServerMap = WebpackMock.webpackServerMap;
     React = require('react');
+    ReactDOMServer = require('react-dom/server');
     ReactServerDOMServer = require('react-server-dom-webpack/server.browser');
     jest.resetModules();
     __unmockReact();
@@ -392,6 +394,127 @@ describe('ReactFlightDOMReply', () => {
 
     // This should've been the same reference that we already saw.
     expect(response.children).toBe(children);
+  });
+
+  // @gate __DEV__
+  describe('can attach debug info to a temporary reference to a JSX element', () => {
+    async function callServerFunction(func, ...args) {
+      // If any of the args are JSX, they'll become temporary references
+      // when we encode the them. This means they'll be completely opaque
+      // to the server function and not actually present in its result stream.
+      //
+      // At the end, when we deserialize the remote stream, the references
+      // will be resolved to the JSX element from the original args.
+      const temporaryReferencesClient =
+        ReactServerDOMClient.createTemporaryReferenceSet();
+
+      const encodedProps = await ReactServerDOMClient.encodeReply(args, {
+        temporaryReferences: temporaryReferencesClient,
+      });
+
+      const resultStream = await getServerFunctionResultStream(
+        func,
+        encodedProps,
+      );
+
+      return ReactServerDOMClient.createFromReadableStream(resultStream, {
+        temporaryReferences: temporaryReferencesClient,
+        serverConsumerManifest: {
+          moduleMap: null,
+          moduleLoading: null,
+        },
+      });
+    }
+
+    async function getServerFunctionResultStream(func, encodedProps) {
+      const temporaryReferencesServer =
+        ReactServerDOMServer.createTemporaryReferenceSet();
+
+      const decodedProps = await ReactServerDOMServer.decodeReply(
+        encodedProps,
+        webpackServerMap,
+        {temporaryReferences: temporaryReferencesServer},
+      );
+
+      return ReactServerDOMServer.renderToReadableStream(
+        await func(...decodedProps),
+        webpackServerMap,
+        {
+          temporaryReferences: temporaryReferencesServer,
+        },
+      );
+    }
+
+    const readResult = require('node:stream/consumers').text;
+
+    it('handles the root chunk resolving to temporary reference', async () => {
+      async function serverFunction(element) {
+        // When serialized, the output will be `0:"$T0:0"`, i.e. the first item of the args array.
+        // It's important that this isn't wrapped in anything else --
+        // we want the Flight Client to try to attach debug info to a value
+        // that came from a temporary reference.
+        return element;
+      }
+
+      const result = await callServerFunction(
+        serverFunction,
+        <div>beep directly</div>,
+      );
+
+      const ssrStream = await ReactDOMServer.renderToReadableStream(result);
+      await expect(await readResult(ssrStream)).toContain(
+        '<div>beep directly</div>',
+      );
+    });
+
+    it('handles a promise that resolves to a temporary reference', async () => {
+      async function serverFunction(element) {
+        async function Result() {
+          // The temporary reference will become the resolved value of a promise,
+          // and debug info will be moved onto it.
+          return <output>{Promise.resolve(element)}</output>;
+        }
+        return <Result />;
+      }
+
+      const result = await callServerFunction(
+        serverFunction,
+        <div>beep in a promise</div>,
+      );
+
+      const ssrStream = await ReactDOMServer.renderToReadableStream(result);
+      await expect(await readResult(ssrStream)).toContain(
+        '<div>beep in a promise</div>',
+      );
+    });
+
+    it('handles a lazy chunk that resolves to a temporary reference', async () => {
+      async function serverFunction(element) {
+        function Result() {
+          return (
+            <React.Suspense>
+              <SomewhatAsync />
+            </React.Suspense>
+          );
+        }
+        async function SomewhatAsync() {
+          await Promise.resolve();
+          return element;
+        }
+
+        return <Result />;
+      }
+
+      const result = await callServerFunction(
+        serverFunction,
+        <div>beep in a lazy chunk</div>,
+      );
+
+      const ssrStream = await ReactDOMServer.renderToReadableStream(result);
+      await expect(await readResult(ssrStream)).toContain(
+        '<div>beep in a lazy chunk</div>',
+      );
+    });
   });
 
   it('can return the same object using temporary references', async () => {

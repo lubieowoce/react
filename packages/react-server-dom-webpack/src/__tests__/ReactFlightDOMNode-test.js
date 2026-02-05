@@ -1909,4 +1909,143 @@ describe('ReactFlightDOMNode', () => {
       globalThis.eval = previousEval;
     }
   });
+
+  // @gate __DEV__
+  describe('can add debug info to JSX passed in via temporary references', () => {
+    function remote(Component) {
+      return async function Wrapped(props) {
+        // If any of the props are JSX, they'll become temporary references
+        // when we encode the them. This means they'll be completely opaque
+        // to the remote component and not actually present in that stream.
+        //
+        // At the end, when we deserialize the remote stream, the references
+        // will be resolved to the JSX element from the original props object.
+        const temporaryReferencesClient =
+          ReactServerDOMClient.createTemporaryReferenceSet();
+
+        const encodedProps = await ReactServerDOMClient.encodeReply(props, {
+          temporaryReferences: temporaryReferencesClient,
+        });
+
+        const remoteStream = await getRemoteStream(Component, encodedProps);
+
+        return ReactServerDOMClient.createFromReadableStream(remoteStream, {
+          temporaryReferences: temporaryReferencesClient,
+          serverConsumerManifest: {
+            moduleMap: null,
+            moduleLoading: null,
+          },
+        });
+      };
+    }
+    async function getRemoteStream(Component, encodedProps) {
+      const temporaryReferencesServer =
+        ReactServerDOMServer.createTemporaryReferenceSet();
+
+      const decodedProps = await ReactServerDOMServer.decodeReply(
+        encodedProps,
+        webpackMap,
+        {
+          temporaryReferences: temporaryReferencesServer,
+        },
+      );
+
+      const {prelude} = await ReactServerDOMStaticServer.prerender(
+        ReactServer.createElement(Component, decodedProps),
+        webpackMap,
+        {
+          temporaryReferences: temporaryReferencesServer,
+          filterStackFrame,
+        },
+      );
+      return prelude;
+    }
+
+    it('root chunk resolves to temporary reference', async () => {
+      const MyRemoteComponent = remote(function MyRemoteComponent({children}) {
+        // When rendered, the output will be `0:"$T0:children"`.
+        // It's important that this isn't wrapped in anything else --
+        // we want the Flight Client to try to attach debug info to a value
+        // that came from a temporary reference.
+        return children;
+      });
+
+      function App() {
+        return ReactServer.createElement(
+          MyRemoteComponent,
+          null,
+          ReactServer.createElement('div', null, 'beep'),
+        );
+      }
+
+      const stream = ReactServerDOMServer.renderToPipeableStream(
+        ReactServer.createElement(App),
+        webpackMap,
+        {filterStackFrame},
+      );
+
+      console.log(await readResult(stream));
+    });
+
+    it('promise resolves to a temporary reference', async () => {
+      const MyRemoteComponent = remote(async function MyRemoteComponent({
+        children,
+      }) {
+        return ReactServer.createElement(
+          'output',
+          null,
+          // The temporary reference will become the resolved value of a promise,
+          // and debug info will be moved onto it.
+          Promise.resolve(children),
+        );
+      });
+
+      function App() {
+        return ReactServer.createElement(
+          MyRemoteComponent,
+          null,
+          ReactServer.createElement('div', null, 'beep'),
+        );
+      }
+
+      const stream = ReactServerDOMServer.renderToPipeableStream(
+        ReactServer.createElement(App),
+        webpackMap,
+        {filterStackFrame},
+      );
+
+      console.log(await readResult(stream));
+    });
+
+    it('lazy chunk resolves to a temporary reference', async () => {
+      const MyRemoteComponent = remote(function MyRemoteComponent({children}) {
+        return ReactServer.createElement(
+          ReactServer.Suspense,
+          null,
+          ReactServer.createElement(SomewhatAsync, {element: children}),
+        );
+      });
+
+      async function SomewhatAsync({element}) {
+        await Promise.resolve();
+        return element;
+      }
+
+      function App() {
+        return ReactServer.createElement(
+          MyRemoteComponent,
+          null,
+          ReactServer.createElement('div', null, 'beep'),
+        );
+      }
+
+      const stream = ReactServerDOMServer.renderToPipeableStream(
+        ReactServer.createElement(App),
+        webpackMap,
+        {filterStackFrame},
+      );
+
+      console.log(await readResult(stream));
+    });
+  });
 });
